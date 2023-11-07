@@ -75,24 +75,27 @@ class ImagePreprocessor:
         edges = cv2.Canny(image, low_threshold, high_threshold)
         return edges
     
-    def correct_perspective(self, corners, output_size=(1024, 1024)):
+    def correct_perspective(self, corners, output_size=(1024, 1024), padding=0):
         """
         Correct the perspective of the image using the detected corners.
         :param corners: Coordinates of the corners of the target in the image.
         :param output_size: Desired size of the output rectified image.
+        :param padding: Padding to add around the rectified image.
         """
-        # Define the points to which the corners will be mapped.
-        # These points form a square with the desired output size.
+        # Adjust the output size to account for padding
+        padded_output_size = (output_size[0] + 2 * padding, output_size[1] + 2 * padding)
+
+        # Define the points to which the corners will be mapped, including padding.
         dst_points = np.array([
-            [0, 0],
-            [output_size[0] - 1, 0],
-            [output_size[0] - 1, output_size[1] - 1],
-            [0, output_size[1] - 1]
+            [padding, padding],
+            [padded_output_size[0] - padding - 1, padding],
+            [padded_output_size[0] - padding - 1, padded_output_size[1] - padding - 1],
+            [padding, padded_output_size[1] - padding - 1]
         ], dtype=np.float32)
         
         # Compute the perspective transform matrix and apply it to the image.
         transform_matrix = cv2.getPerspectiveTransform(corners, dst_points)
-        rectified_image = cv2.warpPerspective(self.original_image, transform_matrix, output_size)
+        rectified_image = cv2.warpPerspective(self.original_image, transform_matrix, padded_output_size)
         return rectified_image
     
     def detect_corners(self, blur_kernel_size=(5, 5), sobel_kernel_size=3, harris_block_size=7, harris_ksize=7, harris_k=0.06, threshold=0.2):

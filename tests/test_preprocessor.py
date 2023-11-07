@@ -85,16 +85,9 @@ class TestImagePreprocessor(unittest.TestCase):
         # Optionally display the blurred image
         self.show_image(blurred_image, title="Blurred Image", wait_key_time=0)
 
-        # Detect edges
-        edges = preprocessor.detect_edges(blurred_image)
-        self.assertIsNotNone(edges, "Edges should be detected")
-        # Optionally display the edge-detected image
-        self.show_image(edges, title="Edges", wait_key_time=0)
-
         # Detect corners
         corners = preprocessor.detect_corners()
         self.assertEqual(len(corners), 4, "Should detect exactly 4 corners")
-        print(corners)
 
         # Draw the detected corners on the original image
         original_image_with_corners = preprocessor.original_image.copy()
@@ -103,10 +96,16 @@ class TestImagePreprocessor(unittest.TestCase):
         self.show_image(original_image_with_corners, title="Original Image With Corners", wait_key_time=0)
 
         # Correct perspective
-        rectified_image = preprocessor.correct_perspective(corners)
+        rectified_image = preprocessor.correct_perspective(corners, padding=50)
         self.assertIsNotNone(rectified_image, "Rectified image should not be None")
         # Optionally display the rectified image
         self.show_image(rectified_image, title="Rectified Image", wait_key_time=0)
+
+        # Detect edges
+        edges = preprocessor.detect_edges(rectified_image)
+        self.assertIsNotNone(edges, "Edges should be detected")
+        # Optionally display the edge-detected image
+        self.show_image(edges, title="Edges", wait_key_time=0)
 
 if __name__ == '__main__':
     unittest.main()
