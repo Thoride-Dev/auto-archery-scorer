@@ -1,5 +1,5 @@
 import unittest
-from archery_scorer import ArcheryScorerApp  # Assuming this is the module containing the main app
+from archery_scorer import ArcheryScorerApp
 
 class TestArcheryScorer(unittest.TestCase):
     """
