@@ -75,7 +75,7 @@ class ImagePreprocessor:
         edges = cv2.Canny(image, low_threshold, high_threshold)
         return edges
     
-    def correct_perspective(self, corners, output_size=(800, 800)):
+    def correct_perspective(self, corners, output_size=(1024, 1024)):
         """
         Correct the perspective of the image using the detected corners.
         :param corners: Coordinates of the corners of the target in the image.
@@ -126,7 +126,7 @@ class ImagePreprocessor:
 
         original_image_with_corners = self.original_image.copy()
         for corner in corners:
-            cv2.drawMarker(original_image_with_corners, tuple(int(v) for v in corner), (0, 255, 0), cv2.MARKER_CROSS, markerSize=20, thickness=2)
+            cv2.drawMarker(original_image_with_corners, tuple(int(v) for v in corner), (0, 255, 0), cv2.MARKER_TILTED_CROSS, markerSize=20, thickness=2)
         self.show_image(original_image_with_corners, title="Original Image With Corners", wait_key_time=0)
 
         # Filter corners to find the four most prominent ones
@@ -141,7 +141,7 @@ class ImagePreprocessor:
         :param max_corners: The maximum number of corners to return.
         """
          # Apply DBSCAN clustering to group corners that are close to each other
-        dbscan = DBSCAN(eps=50, min_samples=5)
+        dbscan = DBSCAN(eps=50, min_samples=20)
         labels = dbscan.fit_predict(corners)
 
         # Calculate the centroid of each cluster

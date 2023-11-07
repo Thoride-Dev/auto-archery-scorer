@@ -12,7 +12,7 @@ class TestImagePreprocessor(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/test_image_02.jpeg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/test_image_03.jpeg'  # Provide a valid path to a test image
         cls.test_image = cv2.imread(cls.test_image_path, cv2.IMREAD_COLOR)
         if cls.test_image is None:
             raise FileNotFoundError(f"Test image not found at {cls.test_image_path}")
