@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from sklearn.cluster import DBSCAN
 
 class ImagePreprocessor:
     """
@@ -65,13 +66,13 @@ class ImagePreprocessor:
         blurred_image = cv2.GaussianBlur(self.original_image, kernel_size, sigmaX=sigma, sigmaY=sigma)
         return blurred_image
     
-    def detect_edges(self, low_threshold=30, high_threshold=200):
+    def detect_edges(self, image, low_threshold=30, high_threshold=200):
         """
         Use Canny edge detection to find edges in the image.
         :param low_threshold: Lower bound for the hysteresis thresholding.
         :param high_threshold: Upper bound for the hysteresis thresholding.
         """
-        edges = cv2.Canny(self.original_image, low_threshold, high_threshold)
+        edges = cv2.Canny(image, low_threshold, high_threshold)
         return edges
     
     def correct_perspective(self, corners, output_size=(800, 800)):
@@ -94,7 +95,7 @@ class ImagePreprocessor:
         rectified_image = cv2.warpPerspective(self.original_image, transform_matrix, output_size)
         return rectified_image
     
-    def detect_corners(self, blur_kernel_size=(5, 5), sobel_kernel_size=3, harris_block_size=2, harris_ksize=3, harris_k=0.04, threshold=0.1):
+    def detect_corners(self, blur_kernel_size=(5, 5), sobel_kernel_size=3, harris_block_size=7, harris_ksize=7, harris_k=0.06, threshold=0.2):
         """
         Detect the corners of the target face using the Harris corner detector.
         :param blur_kernel_size: Kernel size for the Gaussian blur preprocessing.
@@ -106,22 +107,29 @@ class ImagePreprocessor:
         """
         # Preprocess the image with Gaussian blur
         blurred_image = self.apply_gaussian_blur(kernel_size=blur_kernel_size)
-        
+
         # Apply the Harris corner detector
         harris_response = cv2.cornerHarris(blurred_image, harris_block_size, harris_ksize, harris_k)
         
-        # Normalize the Harris response for thresholding
-        harris_response = cv2.normalize(harris_response, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        
+        # Dilate the Harris response to merge corner regions
+        harris_response = cv2.dilate(harris_response, None)
+
         # Threshold the normalized response to get the corners
         corners = np.where(harris_response > threshold * harris_response.max())
         
         # Convert the coordinates to (x, y) pairs
         corners = np.float32(list(zip(corners[1], corners[0])))
-        
+
+        # Refine the corner locations to sub-pixel accuracy
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.01)
+        #corners = cv2.cornerSubPix(blurred_image, corners, winSize=(5, 5), zeroZone=(-1, -1), criteria=criteria)
+
+        original_image_with_corners = self.original_image.copy()
+        for corner in corners:
+            cv2.drawMarker(original_image_with_corners, tuple(int(v) for v in corner), (0, 255, 0), cv2.MARKER_CROSS, markerSize=20, thickness=2)
+        self.show_image(original_image_with_corners, title="Original Image With Corners", wait_key_time=0)
+
         # Filter corners to find the four most prominent ones
-        # This can be done by looking at the distance between corners and selecting the most distant ones
-        # or by using other heuristic methods.
         filtered_corners = self.filter_corners(corners)
         
         return filtered_corners
@@ -132,6 +140,21 @@ class ImagePreprocessor:
         :param corners: Detected corners from the Harris corner detector.
         :param max_corners: The maximum number of corners to return.
         """
+         # Apply DBSCAN clustering to group corners that are close to each other
+        dbscan = DBSCAN(eps=50, min_samples=5)
+        labels = dbscan.fit_predict(corners)
+
+        # Calculate the centroid of each cluster
+        clustered_corners = []
+        for label in set(labels):
+            if label != -1:  # Ignore noise points labeled as -1
+                cluster_points = corners[labels == label]
+                centroid = np.mean(cluster_points, axis=0)
+                clustered_corners.append(centroid)
+
+        # Convert the list of centroids to a NumPy array
+        clustered_corners = np.array(clustered_corners, dtype=np.float32)
+        corners = clustered_corners
         # If there are more than max_corners, we need to select the best ones
         if len(corners) > max_corners:
             # One way to select the best corners is to use a heuristic such as distance from the center
@@ -151,7 +174,7 @@ class ImagePreprocessor:
             return np.arctan2(corner[1] - centroid[1], corner[0] - centroid[0])
         
         corners = sorted(corners, key=angle_with_centroid)
-        
+
         # Check if the sorted corners form a convex quadrilateral
         if not self.is_convex_quadrilateral(corners):
             raise ValueError("The detected corners do not form a convex quadrilateral.")

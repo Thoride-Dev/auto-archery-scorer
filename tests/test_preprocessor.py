@@ -12,7 +12,7 @@ class TestImagePreprocessor(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/test_image_01.png'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/test_image_02.jpeg'  # Provide a valid path to a test image
         cls.test_image = cv2.imread(cls.test_image_path, cv2.IMREAD_COLOR)
         if cls.test_image is None:
             raise FileNotFoundError(f"Test image not found at {cls.test_image_path}")
@@ -53,7 +53,7 @@ class TestImagePreprocessor(unittest.TestCase):
     
     def test_detect_edges(self):
         preprocessor = ImagePreprocessor(self.test_image_path)
-        edges = preprocessor.detect_edges()
+        edges = preprocessor.detect_edges(self.test_image)
         self.assertIsNotNone(edges, "Edges should be detected")
         # self.show_image(edges)
     
@@ -77,19 +77,19 @@ class TestImagePreprocessor(unittest.TestCase):
         grayscale_image = preprocessor.load_image()
         self.assertIsNotNone(grayscale_image, "Grayscale image should not be None")
         # Optionally display the grayscale image
-        # self.show_image(grayscale_image, title="Grayscale Image", wait_key_time=500)
+        self.show_image(grayscale_image, title="Grayscale Image", wait_key_time=0)
 
         # Apply Gaussian blur
         blurred_image = preprocessor.apply_gaussian_blur()
         self.assertIsNotNone(blurred_image, "Blurred image should not be None")
         # Optionally display the blurred image
-        # self.show_image(blurred_image, title="Blurred Image", wait_key_time=500)
+        self.show_image(blurred_image, title="Blurred Image", wait_key_time=0)
 
         # Detect edges
-        edges = preprocessor.detect_edges()
+        edges = preprocessor.detect_edges(blurred_image)
         self.assertIsNotNone(edges, "Edges should be detected")
         # Optionally display the edge-detected image
-        # self.show_image(edges, title="Edges", wait_key_time=500)
+        self.show_image(edges, title="Edges", wait_key_time=0)
 
         # Detect corners
         corners = preprocessor.detect_corners()
