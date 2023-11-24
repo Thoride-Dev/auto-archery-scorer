@@ -1,0 +1,532 @@
+# README.md
+```
+# auto-archery-scorer
+A cv program that determines the score of an archery arrow on target from an image.
+
+```
+
+# requirements.txt
+```
+opencv-python
+numpy
+```
+
+# archery_scorer\app.py
+```
+import cv2
+import numpy as np
+
+
+class ArcheryScorerApp:
+    """
+    This class serves as the main application that uses all other components to perform the scoring.
+    """
+    
+    def __init__(self, image_path):
+        """
+        Initialize the app with the path to the archery target image.
+        """
+        self.image_path = image_path
+    
+    def run(self):
+        """
+        Run the entire scoring process.
+        """
+        pass
+
+# Main execution
+if __name__ == "__main__":
+    image_path = "path_to_archery_target_image.jpg"
+    app = ArcheryScorerApp(image_path)
+    app.run()
+```
+
+# archery_scorer\arrow_detector.py
+```
+import cv2
+import numpy as np
+
+class ArrowDetector:
+    """
+    This class is responsible for detecting arrows within the target face.
+    """
+    
+    def __init__(self, rectified_image, circles):
+        """
+        Initialize the ArrowDetector with the rectified image and detected circles.
+        """
+        self.rectified_image = rectified_image
+        self.circles = circles
+    
+    def detect_gaps(self):
+        """
+        Detect gaps in the concentric circles that may indicate the presence of arrows.
+        """
+        pass
+    
+    def detect_arrows(self):
+        """
+        Detect the arrows by finding lines and clusters within the target face.
+        """
+        pass
+```
+
+# archery_scorer\preprocessor.py
+```
+import cv2
+import numpy as np
+from sklearn.cluster import DBSCAN
+from skimage.transform import hough_ellipse
+from skimage.draw import ellipse_perimeter
+
+class ImagePreprocessor:
+    """
+    This class is responsible for preprocessing the input image to prepare it for further analysis.
+    This includes noise reduction, edge detection, and perspective correction.
+    """
+    
+    def __init__(self, image_path):
+        """
+        Initialize the ImagePreprocessor with the path to the image.
+        """
+        self.image_path = image_path
+        self.original_image = self.load_image()
+
+    def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
+        """
+        Display the image in a window with optional scaling.
+        :param image: The image to be displayed.
+        :param title: The title of the window.
+        :param wait_key_time: Time in milliseconds to wait for a key event. 0 means wait indefinitely.
+        :param scale: Scaling factor for the image size.
+        """
+        if scale != 1.0:
+            # Calculate the new dimensions based on the scaling factor
+            new_width = int(image.shape[1] * scale)
+            new_height = int(image.shape[0] * scale)
+            # Resize the image using the new dimensions
+            scaled_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        else:
+            scaled_image = image
+
+        cv2.imshow(title, scaled_image)
+        cv2.waitKey(wait_key_time)
+        cv2.destroyAllWindows()
+    
+    def load_image(self):
+        """
+        Load the image from the given path, convert it to grayscale, and scale it down to fit within 1024x1024.
+        """
+        image = cv2.imread(self.image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Image at {self.image_path} cannot be loaded.")
+        
+        # Calculate the scaling factor to fit the image within 1024x1024
+        max_dimension = max(image.shape[:2])
+        scale_factor = 1024 / max_dimension if max_dimension > 1024 else 1
+        
+        # Resize the image if necessary
+        if scale_factor != 1:
+            new_width = int(image.shape[1] * scale_factor)
+            new_height = int(image.shape[0] * scale_factor)
+            image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        
+        grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return grayscale_image
+    
+    def apply_gaussian_blur(self, kernel_size=(3, 3), sigma=3):
+        """
+        Apply Gaussian blur to the image to reduce noise.
+        :param kernel_size: Size of the Gaussian kernel.
+        :param sigma_x: Gaussian kernel standard deviation in X direction.
+        """
+        blurred_image = cv2.GaussianBlur(self.original_image, kernel_size, sigmaX=sigma, sigmaY=sigma)
+        return blurred_image
+    
+    def detect_edges(self, image, low_threshold=30, high_threshold=200):
+        """
+        Use Canny edge detection to find edges in the image.
+        :param low_threshold: Lower bound for the hysteresis thresholding.
+        :param high_threshold: Upper bound for the hysteresis thresholding.
+        """
+        edges = cv2.Canny(image, low_threshold, high_threshold)
+        return edges
+    
+
+    def detect_ellipses(self, edges, min_contour_size=1200):
+        """
+        Detect ellipses in the image using contour detection and ellipse fitting.
+        :param edges: Edge-detected image.
+        :param min_contour_size: Minimum size of the contour to be considered for ellipse fitting.
+        :return: A list of ellipses with parameters (center, axes, orientation).
+        """
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        ellipses = []
+        for contour in contours:
+            if len(contour) >= min_contour_size:
+                ellipse = cv2.fitEllipse(contour)
+                ellipses.append(ellipse)
+        return ellipses
+
+    def estimate_ellipse_to_circle_transformation(self, ellipse):
+        """
+        Estimate the perspective transformation matrix to correct an ellipse to a circle.
+        :param ellipse: The parameters of the ellipse (center, axes, orientation).
+        :return: A 3x3 perspective transformation matrix.
+        """
+        (xc, yc), (d1, d2), angle = ellipse
+        if d1 < d2:  # Ensure d1 is always the major axis
+            d1, d2 = d2, d1
+            angle += 90.0
+
+        # The scaling factors for x and y axes
+        scale_x = d2 / d1
+        scale_y = 1.0  # No scaling on the minor axis
+
+        # Calculate the rotation needed to align the major axis with the x-axis
+        rotation_matrix = cv2.getRotationMatrix2D((xc, yc), angle, 1.0)
+        # Convert to a full 3x3 matrix
+        rotation_matrix = np.vstack([rotation_matrix, [0, 0, 1]])
+
+        # Calculate the inverse rotation needed to revert the alignment
+        inv_rotation_matrix = cv2.getRotationMatrix2D((xc, yc), -angle, 1.0)
+        inv_rotation_matrix = np.vstack([inv_rotation_matrix, [0, 0, 1]])
+
+        # Calculate the scaling matrix to scale the major axis
+        scale_matrix = np.array([[scale_x, 0, xc * (1 - scale_x)],
+                                [0, scale_y, 0],
+                                [0, 0, 1]], dtype=np.float32)
+
+        # Combine the transformations: first rotate, then scale, then rotate back
+        transformation = np.dot(inv_rotation_matrix, np.dot(scale_matrix, rotation_matrix))
+
+        return transformation
+    
+    def ellipse_fits_in_image(self, ellipse, image_shape):
+        """
+        Check if the given ellipse fits entirely within the image boundaries.
+        :param ellipse: The parameters of the ellipse (center, axes, orientation).
+        :param image_shape: The shape of the image (height, width).
+        :return: True if the ellipse fits inside the image, False otherwise.
+        """
+        (xc, yc), (d1, d2), angle = ellipse
+        height, width = image_shape[:2]
+        # Calculate the bounding box of the ellipse
+        bbox_x0 = xc - d1/2
+        bbox_x1 = xc + d1/2
+        bbox_y0 = yc - d2/2
+        bbox_y1 = yc + d2/2
+        # Check if the bounding box fits within the image boundaries
+        return (bbox_x0 >= 0 and bbox_x1 < width and bbox_y0 >= 0 and bbox_y1 < height)
+    
+    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.05):
+        """
+        Detect ovals in the image and correct the perspective to make them circles.
+        :param canny_threshold1: Lower threshold for the Canny edge detector.
+        :param canny_threshold2: Upper threshold for the Canny edge detector.
+        :param max_ellipse_axis_ratio: The maximum ratio between the major and minor axis to consider an ellipse as an oval needing correction.
+        """
+        # Blur image 
+        blurred_image = self.apply_gaussian_blur()
+
+        # Detect edges
+        edges = cv2.Canny(blurred_image, canny_threshold1, canny_threshold2)
+        
+        # Detect ellipses using Hough Ellipse Transform or other ellipse-fitting techniques
+        ellipses = self.detect_ellipses(edges)
+        
+        # Filter out ellipses that don't fit entirely inside the image
+        valid_ellipses = [e for e in ellipses if self.ellipse_fits_in_image(e, self.original_image.shape)]
+
+        # Find the largest ellipse based on the area (product of the axes lengths)
+        # that fits entirely inside the image
+        if valid_ellipses:
+            main_ellipse = max(valid_ellipses, key=lambda e: e[1][0] * e[1][1])
+        else:
+            raise ValueError("No valid ellipses found that fit within the image boundaries.")
+        
+        # Check if the detected ellipse is actually an oval (axis ratio exceeds threshold)
+        axis_ratio = max(main_ellipse[1]) / min(main_ellipse[1])
+        if axis_ratio <= max_ellipse_axis_ratio:
+            # The shape is close enough to a circle, no correction needed
+            return self.original_image
+        
+        # Estimate the transformation to correct the oval to a circle
+        transformation = self.estimate_ellipse_to_circle_transformation(main_ellipse)
+        
+        # Apply the transformation to the image
+        corrected_image = cv2.warpPerspective(self.original_image, transformation, (self.original_image.shape[1], self.original_image.shape[0]))
+        
+        return corrected_image
+```
+
+# archery_scorer\scorer.py
+```
+import cv2
+import numpy as np
+
+class Scorer:
+    """
+    This class is responsible for scoring each arrow based on its position on the target.
+    """
+    
+    def __init__(self, arrows, circles):
+        """
+        Initialize the Scorer with detected arrows and circles.
+        """
+        self.arrows = arrows
+        self.circles = circles
+    
+    def score_arrow(self, arrow):
+        """
+        Score a single arrow based on its position relative to the circles.
+        """
+        pass
+    
+    def calculate_total_score(self):
+        """
+        Calculate the total score for all detected arrows.
+        """
+        pass
+```
+
+# archery_scorer\target_detector.py
+```
+import cv2
+import numpy as np
+
+class TargetDetector:
+    """
+    This class is responsible for detecting the target face and its concentric circles.
+    """
+    
+    def __init__(self, preprocessed_image):
+        """
+        Initialize the TargetDetector with the preprocessed image.
+        """
+        self.preprocessed_image = preprocessed_image
+    
+    def find_target_corners(self):
+        """
+        Detect the corners of the target face.
+        """
+        pass
+    
+    def rectify_target(self):
+        """
+        Rectify the image so that the target face is frontal and circular.
+        """
+        pass
+    
+    def detect_circles(self):
+        """
+        Detect the concentric circles of the target face.
+        """
+        pass
+```
+
+# tests\test_app.py
+```
+import unittest
+from archery_scorer import ArcheryScorerApp
+
+class TestArcheryScorer(unittest.TestCase):
+    """
+    This class contains test cases for the automatic archery scorer.
+    It will load test images and their corresponding ground truth labels,
+    run the scoring process, and evaluate the performance of the system.
+    """
+
+    def setUp(self):
+        """
+        Set up the testing environment before each test case.
+        This can include loading the test dataset and labels.
+        """
+        self.test_data = self.load_test_data()
+        self.test_labels = self.load_test_labels()
+    
+    def load_test_data(self):
+        """
+        Load the test dataset consisting of images of archery targets.
+        """
+        # Load images from a test dataset directory or file
+        pass
+    
+    def load_test_labels(self):
+        """
+        Load the ground truth labels for the test dataset.
+        """
+        # Load labels, which could be in the form of a CSV or JSON file
+        pass
+
+    def test_scoring_accuracy(self):
+        """
+        Test the scoring accuracy of the archery scorer on the test dataset.
+        """
+        total_images = len(self.test_data)
+        correct_scores = 0
+        detailed_errors = []
+
+        for image_path, true_scores in zip(self.test_data, self.test_labels):
+            app = ArcheryScorerApp(image_path)
+            predicted_scores = app.run()  # Assuming run() returns the scores
+            
+            # Compare predicted_scores with true_scores and count correct ones
+            if predicted_scores == true_scores:
+                correct_scores += 1
+            else:
+                error_info = {
+                    'image_path': image_path,
+                    'true_scores': true_scores,
+                    'predicted_scores': predicted_scores
+                }
+                detailed_errors.append(error_info)
+
+        accuracy = correct_scores / total_images
+        print(f"Accuracy: {accuracy * 100:.2f}%")
+        if detailed_errors:
+            print("Detailed Errors:")
+            for error in detailed_errors:
+                print(error)
+    
+    def test_false_positives(self):
+        """
+        Test for false positives in arrow detection.
+        """
+        # Implement a test case for detecting false positives
+        pass
+    
+    def test_false_negatives(self):
+        """
+        Test for false negatives in arrow detection.
+        """
+        # Implement a test case for detecting false negatives
+        pass
+    
+    def test_robustness_to_angles(self):
+        """
+        Test the system's robustness to various shooting angles.
+        """
+        # Implement a test case for evaluating performance across different angles
+        pass
+    
+    def test_performance_metrics(self):
+        """
+        Test and report various performance metrics such as precision, recall, and F1 score.
+        """
+        # Implement a test case for calculating and reporting performance metrics
+        pass
+
+# Main execution of test cases
+if __name__ == '__main__':
+    unittest.main()
+```
+
+# tests\test_preprocessor.py
+```
+import unittest
+import cv2
+import numpy as np
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from archery_scorer.preprocessor import ImagePreprocessor
+
+class TestImagePreprocessor(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # This method will be executed once before any test is run
+        # Load a test image or create a synthetic one for testing purposes
+        cls.test_image_path = 'tests/data/8-09.jpg'  # Provide a valid path to a test image
+        cls.test_image = cv2.imread(cls.test_image_path, cv2.IMREAD_COLOR)
+        if cls.test_image is None:
+            raise FileNotFoundError(f"Test image not found at {cls.test_image_path}")
+        cls
+
+    def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
+        """
+        Display the image in a window with optional scaling.
+        :param image: The image to be displayed.
+        :param title: The title of the window.
+        :param wait_key_time: Time in milliseconds to wait for a key event. 0 means wait indefinitely.
+        :param scale: Scaling factor for the image size.
+        """
+        if scale != 1.0:
+            # Calculate the new dimensions based on the scaling factor
+            new_width = int(image.shape[1] * scale)
+            new_height = int(image.shape[0] * scale)
+            # Resize the image using the new dimensions
+            scaled_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        else:
+            scaled_image = image
+
+        cv2.imshow(title, scaled_image)
+        cv2.waitKey(wait_key_time)
+        cv2.destroyAllWindows()
+    
+    def test_load_image(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        loaded_image = preprocessor.load_image()
+        self.assertIsNotNone(loaded_image, "Loaded image should not be None")
+        # self.show_image(loaded_image)
+    
+    def test_apply_gaussian_blur(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        blurred_image = preprocessor.apply_gaussian_blur()
+        self.assertIsNotNone(blurred_image, "Blurred image should not be None")
+        # self.show_image(blurred_image)
+    
+    def test_detect_edges(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        edges = preprocessor.detect_edges(self.test_image)
+        self.assertIsNotNone(edges, "Edges should be detected")
+        # self.show_image(edges)
+
+    def test_detect_ellipses(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        # Apply Canny edge detection to the image
+        blurred_image = preprocessor.apply_gaussian_blur()
+        edges = cv2.Canny(blurred_image, 150, 400)
+        #self.show_image(edges, title="Canny Edges (Detect Ellipses)", wait_key_time=0)
+        # Detect ellipses in the edge-detected image
+        ellipses = preprocessor.detect_ellipses(edges)
+        self.assertIsNotNone(ellipses, "Ellipses should be detected")
+        self.assertGreater(len(ellipses), 0, "At least one ellipse should be detected")
+        # Optionally display the image with detected ellipses
+        image_with_ellipses = preprocessor.original_image.copy()
+        for ellipse in ellipses:
+            cv2.ellipse(image_with_ellipses, ellipse, (0, 255, 0), 2)
+        #self.show_image(image_with_ellipses, title="Detected Ellipses", wait_key_time=0)
+
+    def test_estimate_ellipse_to_circle_transformation(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        # Use a synthetic ellipse for testing
+        ellipse = ((100, 100), (80, 50), 30)  # center, axes, angle
+        transformation_matrix = preprocessor.estimate_ellipse_to_circle_transformation(ellipse)
+        self.assertIsNotNone(transformation_matrix, "Transformation matrix should not be None")
+
+    def test_detect_and_correct_ovals(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        # Perform edge detection
+        blurred_image = preprocessor.apply_gaussian_blur()
+        edges = cv2.Canny(blurred_image, 150, 600)
+        self.show_image(edges, title="Canny Edges (Detect & Correct)", wait_key_time=0)
+        # Detect ellipses
+        ellipses = preprocessor.detect_ellipses(edges)
+        image_with_ellipses = preprocessor.original_image.copy()
+        for ellipse in ellipses:
+            cv2.ellipse(image_with_ellipses, ellipse, (0, 255, 0), 2)
+        self.show_image(image_with_ellipses, title="Detected Ellipses (Detect & Correct)", wait_key_time=0)
+        self.assertGreater(len(ellipses), 0, "At least one ellipse should be detected")
+        # Correct the perspective of the most prominent ellipse
+        corrected_image = preprocessor.detect_and_correct_ovals(150, 400)
+        self.assertIsNotNone(corrected_image, "Corrected image should not be None")
+        # Optionally display the corrected image
+        self.show_image(corrected_image, title="Corrected Image", wait_key_time=0)
+
+if __name__ == '__main__':
+    unittest.main()
+
+```
+
