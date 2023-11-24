@@ -12,7 +12,7 @@ class TestImagePreprocessor(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/test_image_03.jpeg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/8-09.jpg'  # Provide a valid path to a test image
         cls.test_image = cv2.imread(cls.test_image_path, cv2.IMREAD_COLOR)
         if cls.test_image is None:
             raise FileNotFoundError(f"Test image not found at {cls.test_image_path}")
@@ -56,56 +56,48 @@ class TestImagePreprocessor(unittest.TestCase):
         edges = preprocessor.detect_edges(self.test_image)
         self.assertIsNotNone(edges, "Edges should be detected")
         # self.show_image(edges)
-    
-    def test_correct_perspective(self):
-        preprocessor = ImagePreprocessor(self.test_image_path)
-        # Provide a set of corners for perspective correction
-        # These corners should be determined based on the actual test image
-        corners = np.float32([[150, 300], [720, 195], [760, 980], [20, 900]])
-        rectified_image = preprocessor.correct_perspective(corners)
-        self.assertIsNotNone(rectified_image, "Rectified image should not be None")
-        # self.show_image(rectified_image)
-    
-    def test_detect_corners(self):
-        preprocessor = ImagePreprocessor(self.test_image_path)
-        corners = preprocessor.detect_corners()
-        self.assertEqual(len(corners), 4, "Should detect exactly 4 corners")
 
-    def test_preprocessing_pipeline(self):
+    def test_detect_ellipses(self):
         preprocessor = ImagePreprocessor(self.test_image_path)
-        # Load the image and convert it to grayscale
-        grayscale_image = preprocessor.load_image()
-        self.assertIsNotNone(grayscale_image, "Grayscale image should not be None")
-        # Optionally display the grayscale image
-        self.show_image(grayscale_image, title="Grayscale Image", wait_key_time=0)
-
-        # Apply Gaussian blur
+        # Apply Canny edge detection to the image
         blurred_image = preprocessor.apply_gaussian_blur()
-        self.assertIsNotNone(blurred_image, "Blurred image should not be None")
-        # Optionally display the blurred image
-        self.show_image(blurred_image, title="Blurred Image", wait_key_time=0)
+        edges = cv2.Canny(blurred_image, 150, 400)
+        #self.show_image(edges, title="Canny Edges (Detect Ellipses)", wait_key_time=0)
+        # Detect ellipses in the edge-detected image
+        ellipses = preprocessor.detect_ellipses(edges)
+        self.assertIsNotNone(ellipses, "Ellipses should be detected")
+        self.assertGreater(len(ellipses), 0, "At least one ellipse should be detected")
+        # Optionally display the image with detected ellipses
+        image_with_ellipses = preprocessor.original_image.copy()
+        for ellipse in ellipses:
+            cv2.ellipse(image_with_ellipses, ellipse, (0, 255, 0), 2)
+        #self.show_image(image_with_ellipses, title="Detected Ellipses", wait_key_time=0)
 
-        # Detect corners
-        corners = preprocessor.detect_corners()
-        self.assertEqual(len(corners), 4, "Should detect exactly 4 corners")
+    def test_estimate_ellipse_to_circle_transformation(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        # Use a synthetic ellipse for testing
+        ellipse = ((100, 100), (80, 50), 30)  # center, axes, angle
+        transformation_matrix = preprocessor.estimate_ellipse_to_circle_transformation(ellipse)
+        self.assertIsNotNone(transformation_matrix, "Transformation matrix should not be None")
 
-        # Draw the detected corners on the original image
-        original_image_with_corners = preprocessor.original_image.copy()
-        for corner in corners:
-            cv2.drawMarker(original_image_with_corners, tuple(int(v) for v in corner), (0, 255, 0), cv2.MARKER_CROSS, markerSize=20, thickness=2)
-        self.show_image(original_image_with_corners, title="Original Image With Corners", wait_key_time=0)
-
-        # Correct perspective
-        rectified_image = preprocessor.correct_perspective(corners, padding=50)
-        self.assertIsNotNone(rectified_image, "Rectified image should not be None")
-        # Optionally display the rectified image
-        self.show_image(rectified_image, title="Rectified Image", wait_key_time=0)
-
-        # Detect edges
-        edges = preprocessor.detect_edges(rectified_image)
-        self.assertIsNotNone(edges, "Edges should be detected")
-        # Optionally display the edge-detected image
-        self.show_image(edges, title="Edges", wait_key_time=0)
+    def test_detect_and_correct_ovals(self):
+        preprocessor = ImagePreprocessor(self.test_image_path)
+        # Perform edge detection
+        blurred_image = preprocessor.apply_gaussian_blur()
+        edges = cv2.Canny(blurred_image, 150, 600)
+        self.show_image(edges, title="Canny Edges (Detect & Correct)", wait_key_time=0)
+        # Detect ellipses
+        ellipses = preprocessor.detect_ellipses(edges)
+        image_with_ellipses = preprocessor.original_image.copy()
+        for ellipse in ellipses:
+            cv2.ellipse(image_with_ellipses, ellipse, (0, 255, 0), 2)
+        self.show_image(image_with_ellipses, title="Detected Ellipses (Detect & Correct)", wait_key_time=0)
+        self.assertGreater(len(ellipses), 0, "At least one ellipse should be detected")
+        # Correct the perspective of the most prominent ellipse
+        corrected_image = preprocessor.detect_and_correct_ovals(150, 400)
+        self.assertIsNotNone(corrected_image, "Corrected image should not be None")
+        # Optionally display the corrected image
+        self.show_image(corrected_image, title="Corrected Image", wait_key_time=0)
 
 if __name__ == '__main__':
     unittest.main()

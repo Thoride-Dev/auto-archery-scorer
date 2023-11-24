@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from sklearn.cluster import DBSCAN
+from skimage.transform import hough_ellipse
+from skimage.draw import ellipse_perimeter
 
 class ImagePreprocessor:
     """
@@ -75,131 +77,109 @@ class ImagePreprocessor:
         edges = cv2.Canny(image, low_threshold, high_threshold)
         return edges
     
-    def correct_perspective(self, corners, output_size=(1024, 1024), padding=0):
-        """
-        Correct the perspective of the image using the detected corners.
-        :param corners: Coordinates of the corners of the target in the image.
-        :param output_size: Desired size of the output rectified image.
-        :param padding: Padding to add around the rectified image.
-        """
-        # Adjust the output size to account for padding
-        padded_output_size = (output_size[0] + 2 * padding, output_size[1] + 2 * padding)
 
-        # Define the points to which the corners will be mapped, including padding.
-        dst_points = np.array([
-            [padding, padding],
-            [padded_output_size[0] - padding - 1, padding],
-            [padded_output_size[0] - padding - 1, padded_output_size[1] - padding - 1],
-            [padding, padded_output_size[1] - padding - 1]
-        ], dtype=np.float32)
-        
-        # Compute the perspective transform matrix and apply it to the image.
-        transform_matrix = cv2.getPerspectiveTransform(corners, dst_points)
-        rectified_image = cv2.warpPerspective(self.original_image, transform_matrix, padded_output_size)
-        return rectified_image
+    def detect_ellipses(self, edges, min_contour_size=1200):
+        """
+        Detect ellipses in the image using contour detection and ellipse fitting.
+        :param edges: Edge-detected image.
+        :param min_contour_size: Minimum size of the contour to be considered for ellipse fitting.
+        :return: A list of ellipses with parameters (center, axes, orientation).
+        """
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        ellipses = []
+        for contour in contours:
+            if len(contour) >= min_contour_size:
+                ellipse = cv2.fitEllipse(contour)
+                ellipses.append(ellipse)
+        return ellipses
+
+    def estimate_ellipse_to_circle_transformation(self, ellipse):
+        """
+        Estimate the perspective transformation matrix to correct an ellipse to a circle.
+        :param ellipse: The parameters of the ellipse (center, axes, orientation).
+        :return: A 3x3 perspective transformation matrix.
+        """
+        (xc, yc), (d1, d2), angle = ellipse
+        if d1 < d2:  # Ensure d1 is always the major axis
+            d1, d2 = d2, d1
+            angle += 90.0
+
+        # The scaling factors for x and y axes
+        scale_x = d2 / d1
+        scale_y = 1.0  # No scaling on the minor axis
+
+        # Calculate the rotation needed to align the major axis with the x-axis
+        rotation_matrix = cv2.getRotationMatrix2D((xc, yc), angle, 1.0)
+        # Convert to a full 3x3 matrix
+        rotation_matrix = np.vstack([rotation_matrix, [0, 0, 1]])
+
+        # Calculate the inverse rotation needed to revert the alignment
+        inv_rotation_matrix = cv2.getRotationMatrix2D((xc, yc), -angle, 1.0)
+        inv_rotation_matrix = np.vstack([inv_rotation_matrix, [0, 0, 1]])
+
+        # Calculate the scaling matrix to scale the major axis
+        scale_matrix = np.array([[scale_x, 0, xc * (1 - scale_x)],
+                                [0, scale_y, 0],
+                                [0, 0, 1]], dtype=np.float32)
+
+        # Combine the transformations: first rotate, then scale, then rotate back
+        transformation = np.dot(inv_rotation_matrix, np.dot(scale_matrix, rotation_matrix))
+
+        return transformation
     
-    def detect_corners(self, blur_kernel_size=(5, 5), sobel_kernel_size=3, harris_block_size=7, harris_ksize=7, harris_k=0.06, threshold=0.2):
+    def ellipse_fits_in_image(self, ellipse, image_shape):
         """
-        Detect the corners of the target face using the Harris corner detector.
-        :param blur_kernel_size: Kernel size for the Gaussian blur preprocessing.
-        :param sobel_kernel_size: Aperture parameter for the Sobel operator.
-        :param harris_block_size: Neighborhood size for Harris corner detection.
-        :param harris_ksize: Aperture parameter for the Harris corner detection.
-        :param harris_k: Harris detector free parameter.
-        :param threshold: Threshold for detecting strong corners.
+        Check if the given ellipse fits entirely within the image boundaries.
+        :param ellipse: The parameters of the ellipse (center, axes, orientation).
+        :param image_shape: The shape of the image (height, width).
+        :return: True if the ellipse fits inside the image, False otherwise.
         """
-        # Preprocess the image with Gaussian blur
-        blurred_image = self.apply_gaussian_blur(kernel_size=blur_kernel_size)
-
-        # Apply the Harris corner detector
-        harris_response = cv2.cornerHarris(blurred_image, harris_block_size, harris_ksize, harris_k)
-        
-        # Dilate the Harris response to merge corner regions
-        harris_response = cv2.dilate(harris_response, None)
-
-        # Threshold the normalized response to get the corners
-        corners = np.where(harris_response > threshold * harris_response.max())
-        
-        # Convert the coordinates to (x, y) pairs
-        corners = np.float32(list(zip(corners[1], corners[0])))
-
-        # Refine the corner locations to sub-pixel accuracy
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.01)
-        #corners = cv2.cornerSubPix(blurred_image, corners, winSize=(5, 5), zeroZone=(-1, -1), criteria=criteria)
-
-        original_image_with_corners = self.original_image.copy()
-        for corner in corners:
-            cv2.drawMarker(original_image_with_corners, tuple(int(v) for v in corner), (0, 255, 0), cv2.MARKER_TILTED_CROSS, markerSize=20, thickness=2)
-        self.show_image(original_image_with_corners, title="Original Image With Corners", wait_key_time=0)
-
-        # Filter corners to find the four most prominent ones
-        filtered_corners = self.filter_corners(corners)
-        
-        return filtered_corners
-
-    def filter_corners(self, corners, max_corners=4):
-        """
-        Filter the detected corners to find the four corners of the target paper.
-        :param corners: Detected corners from the Harris corner detector.
-        :param max_corners: The maximum number of corners to return.
-        """
-         # Apply DBSCAN clustering to group corners that are close to each other
-        dbscan = DBSCAN(eps=50, min_samples=20)
-        labels = dbscan.fit_predict(corners)
-
-        # Calculate the centroid of each cluster
-        clustered_corners = []
-        for label in set(labels):
-            if label != -1:  # Ignore noise points labeled as -1
-                cluster_points = corners[labels == label]
-                centroid = np.mean(cluster_points, axis=0)
-                clustered_corners.append(centroid)
-
-        # Convert the list of centroids to a NumPy array
-        clustered_corners = np.array(clustered_corners, dtype=np.float32)
-        corners = clustered_corners
-        # If there are more than max_corners, we need to select the best ones
-        if len(corners) > max_corners:
-            # One way to select the best corners is to use a heuristic such as distance from the center
-            centroid = np.mean(corners, axis=0)
-            distances = np.sqrt(np.sum((corners - centroid)**2, axis=1))
-            # Sort corners by their distance to the centroid (farthest first)
-            corners = corners[np.argsort(-distances)]
-        
-        # Keep only the max_corners number of points
-        corners = corners[:max_corners]
-        
-        # Calculate the centroid of the corners
-        centroid = np.mean(corners, axis=0)
-        
-        # Sort the corners based on their angle with respect to the centroid
-        def angle_with_centroid(corner):
-            return np.arctan2(corner[1] - centroid[1], corner[0] - centroid[0])
-        
-        corners = sorted(corners, key=angle_with_centroid)
-
-        # Check if the sorted corners form a convex quadrilateral
-        if not self.is_convex_quadrilateral(corners):
-            raise ValueError("The detected corners do not form a convex quadrilateral.")
-        
-        # Return the filtered corners
-        return np.array(corners, dtype=np.float32)
+        (xc, yc), (d1, d2), angle = ellipse
+        height, width = image_shape[:2]
+        # Calculate the bounding box of the ellipse
+        bbox_x0 = xc - d1/2
+        bbox_x1 = xc + d1/2
+        bbox_y0 = yc - d2/2
+        bbox_y1 = yc + d2/2
+        # Check if the bounding box fits within the image boundaries
+        return (bbox_x0 >= 0 and bbox_x1 < width and bbox_y0 >= 0 and bbox_y1 < height)
     
-    def is_convex_quadrilateral(self, corners):
+    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.05):
         """
-        Check if four points form a convex quadrilateral.
-        :param corners: Four corners sorted in a consistent order.
+        Detect ovals in the image and correct the perspective to make them circles.
+        :param canny_threshold1: Lower threshold for the Canny edge detector.
+        :param canny_threshold2: Upper threshold for the Canny edge detector.
+        :param max_ellipse_axis_ratio: The maximum ratio between the major and minor axis to consider an ellipse as an oval needing correction.
         """
-        # Calculate cross product of adjacent edges around the quadrilateral
-        def cross_product(a, b, c):
-            ab = b - a
-            bc = c - b
-            return np.cross(ab, bc)
+        # Blur image 
+        blurred_image = self.apply_gaussian_blur()
+
+        # Detect edges
+        edges = cv2.Canny(blurred_image, canny_threshold1, canny_threshold2)
         
-        cp1 = cross_product(corners[0], corners[1], corners[2])
-        cp2 = cross_product(corners[1], corners[2], corners[3])
-        cp3 = cross_product(corners[2], corners[3], corners[0])
-        cp4 = cross_product(corners[3], corners[0], corners[1])
+        # Detect ellipses using Hough Ellipse Transform or other ellipse-fitting techniques
+        ellipses = self.detect_ellipses(edges)
         
-        # Check if cross products have the same sign (all positive or all negative)
-        return np.sign(cp1) == np.sign(cp2) == np.sign(cp3) == np.sign(cp4)
+        # Filter out ellipses that don't fit entirely inside the image
+        valid_ellipses = [e for e in ellipses if self.ellipse_fits_in_image(e, self.original_image.shape)]
+
+        # Find the largest ellipse based on the area (product of the axes lengths)
+        # that fits entirely inside the image
+        if valid_ellipses:
+            main_ellipse = max(valid_ellipses, key=lambda e: e[1][0] * e[1][1])
+        else:
+            raise ValueError("No valid ellipses found that fit within the image boundaries.")
+        
+        # Check if the detected ellipse is actually an oval (axis ratio exceeds threshold)
+        axis_ratio = max(main_ellipse[1]) / min(main_ellipse[1])
+        if axis_ratio <= max_ellipse_axis_ratio:
+            # The shape is close enough to a circle, no correction needed
+            return self.original_image
+        
+        # Estimate the transformation to correct the oval to a circle
+        transformation = self.estimate_ellipse_to_circle_transformation(main_ellipse)
+        
+        # Apply the transformation to the image
+        corrected_image = cv2.warpPerspective(self.original_image, transformation, (self.original_image.shape[1], self.original_image.shape[0]))
+        
+        return corrected_image
