@@ -10,12 +10,16 @@ class ImagePreprocessor:
     This includes noise reduction, edge detection, and perspective correction.
     """
     
-    def __init__(self, image_path):
+    def __init__(self, image_path=None, image=None):
         """
         Initialize the ImagePreprocessor with the path to the image.
         """
-        self.image_path = image_path
-        self.original_image = self.load_image()
+        if image_path:
+            self.image_path = image_path
+            self.original_image = self.load_image()
+        else:
+            self.image_path = ""
+            self.original_image = image
 
     def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
         """
@@ -144,7 +148,7 @@ class ImagePreprocessor:
         # Check if the bounding box fits within the image boundaries
         return (bbox_x0 >= 0 and bbox_x1 < width and bbox_y0 >= 0 and bbox_y1 < height)
     
-    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.05):
+    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.0000001):
         """
         Detect ovals in the image and correct the perspective to make them circles.
         :param canny_threshold1: Lower threshold for the Canny edge detector.

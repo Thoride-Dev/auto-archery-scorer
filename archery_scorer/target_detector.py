@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 class TargetDetector:
     """
     This class is responsible for detecting the target face and its concentric circles.
@@ -28,7 +29,7 @@ class TargetDetector:
         # This method would be implemented if needed
         pass
     
-    def detect_circles(self, dp=1.2, minDist=0.1, param1=150, param2=450, minRadius=10, maxRadius=2000):
+    def detect_circles(self, dp=1.2, minDist=0.001, param1=100, param2=400, minRadius=1, maxRadius=2000):
         """
         Detect the concentric circles of the target face using Hough Circle Transform.
         :param dp: Inverse ratio of the accumulator resolution to the image resolution.
@@ -40,8 +41,10 @@ class TargetDetector:
         :return: A list of detected circles with (x, y, radius).
         """
         #gray_image = cv2.cvtColor(self.preprocessed_image, cv2.COLOR_BGR2GRAY)
+        image = self.preprocessed_image.copy()
+
         circles = cv2.HoughCircles(
-            self.preprocessed_image,
+            image,
             cv2.HOUGH_GRADIENT,
             dp=dp,
             minDist=minDist,
