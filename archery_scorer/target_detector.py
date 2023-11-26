@@ -29,7 +29,7 @@ class TargetDetector:
         # This method would be implemented if needed
         pass
     
-    def detect_circles(self, dp=1.2, minDist=0.001, param1=100, param2=400, minRadius=1, maxRadius=2000):
+    def detect_circles(self, dp=1.2, minDist=0.001, param1=150, param2=435, minRadius=1, maxRadius=2000):
         """
         Detect the concentric circles of the target face using Hough Circle Transform.
         :param dp: Inverse ratio of the accumulator resolution to the image resolution.
