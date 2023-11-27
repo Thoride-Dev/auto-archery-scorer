@@ -60,7 +60,7 @@ class TargetDetector:
         blurred_image = cv2.GaussianBlur(image, (5, 5), 2)
 
         circles = None
-        while circles is None or len(circles[0])<20:
+        while circles is None or len(circles[0])<50:
             circles = cv2.HoughCircles(
                 blurred_image,
                 cv2.HOUGH_GRADIENT,
