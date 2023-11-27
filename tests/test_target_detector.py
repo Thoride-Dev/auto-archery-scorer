@@ -18,7 +18,7 @@ class TestTargetDetector(unittest.TestCase):
         
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
         cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
-        for i in range(5):
+        for i in range(0):
             cls.preprocessor = ImagePreprocessor(image = cls.preprocessed_image)
             cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
 
@@ -54,12 +54,11 @@ class TestTargetDetector(unittest.TestCase):
         #self.assertGreater(len(circles), 0, "At least one circle should be detected")
 
         # Optionally, visualize the detected circles on the image
+        image_with_circles = target_detector.preprocessed_image.copy()
         for circle in circles:
-            cv2.circle(self.preprocessed_image, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
-        self.show_image(self.preprocessed_image, title="Detected Circles", wait_key_time=0)
+            cv2.circle(image_with_circles, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
+        self.show_image(image_with_circles, title="Detected Circles", wait_key_time=0)
 
-    # Additional test cases can be added here to test other functionalities
-    # such as find_target_corners, rectify_target, etc.
 
 if __name__ == '__main__':
     unittest.main()

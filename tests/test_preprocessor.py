@@ -61,7 +61,7 @@ class TestImagePreprocessor(unittest.TestCase):
         preprocessor = ImagePreprocessor(self.test_image_path)
         # Apply Canny edge detection to the image
         blurred_image = preprocessor.apply_gaussian_blur()
-        edges = cv2.Canny(blurred_image, 150, 400)
+        edges = cv2.Canny(blurred_image, 100, 300)
         #self.show_image(edges, title="Canny Edges (Detect Ellipses)", wait_key_time=0)
         # Detect ellipses in the edge-detected image
         ellipses = preprocessor.detect_ellipses(edges)

@@ -81,7 +81,7 @@ class ImagePreprocessor:
         blurred_image = cv2.GaussianBlur(self.original_image, kernel_size, sigmaX=sigma, sigmaY=sigma)
         return blurred_image
     
-    def detect_edges(self, image, low_threshold=30, high_threshold=200):
+    def detect_edges(self, image, low_threshold=100, high_threshold=300):
         """
         Use Canny edge detection to find edges in the image.
         :param low_threshold: Lower bound for the hysteresis thresholding.
