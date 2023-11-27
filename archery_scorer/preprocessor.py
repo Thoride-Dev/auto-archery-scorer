@@ -157,7 +157,7 @@ class ImagePreprocessor:
         # Check if the bounding box fits within the image boundaries
         return (bbox_x0 >= 0 and bbox_x1 < width and bbox_y0 >= 0 and bbox_y1 < height)
     
-    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.0000001):
+    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.01):
         """
         Detect ovals in the image and correct the perspective to make them circles.
         :param canny_threshold1: Lower threshold for the Canny edge detector.
@@ -196,3 +196,4 @@ class ImagePreprocessor:
         corrected_image = cv2.warpPerspective(self.original_image, transformation, (self.original_image.shape[1], self.original_image.shape[0]))
         
         return corrected_image
+    

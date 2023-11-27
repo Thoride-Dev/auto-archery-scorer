@@ -28,40 +28,42 @@ class TargetDetector:
         # Assuming the preprocessor already rectifies the image to a circle
         # This method would be implemented if needed
         pass
+
+    def group_similar_circles(self, circles, radius_threshold):
+        """
+        Group circles with similar radii.
+        """
+        circles = sorted(circles, key=lambda x: x[2], reverse=True)
+        grouped_circles = []
+        skip_indices = set()
+
+        for i, circle in enumerate(circles):
+            if i in skip_indices:
+                continue
+            similar_circles = [circle]
+            for j, other_circle in enumerate(circles[i+1:], start=i+1):
+                if abs(circle[2] - other_circle[2]) <= radius_threshold:
+                    similar_circles.append(other_circle)
+                    skip_indices.add(j)
+            # Combine similar circles by averaging their coordinates and radii
+            average_circle = np.mean(similar_circles, axis=0).astype(int)
+            grouped_circles.append(average_circle)
+
+        return grouped_circles
+
     
-    def detect_circles(self, dp=1.2, minDist=0.001, param1=150, param2=700, minRadius=1, maxRadius=2000):
+    def detect_circles(self, dp=0.75, minDist=0.000000001, param1=150, param2=700, minRadius=1, maxRadius=2000, radius_threshold=50):
         """
         Detect the concentric circles of the target face using Hough Circle Transform.
-        :param dp: Inverse ratio of the accumulator resolution to the image resolution.
-        :param minDist: Minimum distance between the centers of the detected circles.
-        :param param1: Higher threshold for the Canny edge detector.
-        :param param2: Threshold for center detection.
-        :param minRadius: Minimum circle radius.
-        :param maxRadius: Maximum circle radius.
-        :return: A list of detected circles with (x, y, radius).
         """
-        #gray_image = cv2.cvtColor(self.preprocessed_image, cv2.COLOR_BGR2GRAY)
         image = self.preprocessed_image.copy()
-
-        # Apply Gaussian blur to reduce noise
-        blurred_image = cv2.GaussianBlur(image, (3, 3), 2)
-
-        cv2.imshow("As", blurred_image)
-        cv2.imwrite("blurred.jpg", blurred_image)
-        
-        # Apply edge detection
-        edges = cv2.Canny(blurred_image, 300, 600)
-
-        # Apply morphological operations to close gaps in edges
-        kernel = np.ones((3, 3), np.uint8)
-        edges = cv2.dilate(edges, kernel, iterations=3)
-        cv2.imshow("as", edges)
-        cv2.imwrite("edges.jpg", edges)
+        blurred_image = cv2.GaussianBlur(image, (5, 5), 2)
+        all_circles = []
 
         circles = None
-        while circles is None or len(circles[0])<10:
+        while circles is None or len(circles[0])<15:
             circles = cv2.HoughCircles(
-                edges,
+                blurred_image,
                 cv2.HOUGH_GRADIENT,
                 dp=dp,
                 minDist=minDist,
@@ -71,14 +73,18 @@ class TargetDetector:
                 maxRadius=maxRadius
             )
             param2-=5
-        
-        print(circles)
+
         if circles is not None:
-            print(f"Number of Circles: {len(circles[0])}")
             circles = np.round(circles[0, :]).astype("int")
-            return circles
-        else:
-            return []
+            # Combine all circles onto the original image
+            image_c = self.preprocessed_image.copy()
+            for circle in circles:
+                cv2.circle(image_c, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
+            cv2.imshow(f"asd",image_c)
+            # Group circles with similar radii
+            circles = self.group_similar_circles(circles, radius_threshold)
+
+        return circles
 
 # Example usage:
 # preprocessed_image = ... # This should be the output from the preprocessor
