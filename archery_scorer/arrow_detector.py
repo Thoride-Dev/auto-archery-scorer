@@ -30,10 +30,10 @@ class ArrowDetector:
         Detect a single arrow by finding lines within the target face.
         """
         # Edge detection using Canny
-        edges = cv2.Canny(self.rectified_image, 200, 250)
+        edges = cv2.Canny(self.rectified_image, 60, 200)
         
         # Detect lines using HoughLinesP
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=15)
         
         # Extracting line coordinates excluding those with center points near the image boundaries
         line_coords = []
@@ -44,9 +44,9 @@ class ArrowDetector:
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
                 # Filter out lines with center points too close to the image boundaries
-                if center_x > 150 and center_x < self.rectified_image.shape[1] - 150 and \
-                center_y > 150 and center_y < self.rectified_image.shape[0] - 150:
+                if center_x > 20 and center_x < self.rectified_image.shape[1] - 20 and center_y > 20 and center_y < self.rectified_image.shape[0] - 20:
                     line_coords.append([x1, y1, x2, y2])
+                    #print(center_x, center_y)
         
         # Fit a line to the arrow among the filtered lines
         if len(line_coords) > 0:

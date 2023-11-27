@@ -20,7 +20,7 @@ class TestArrowDetector(unittest.TestCase):
         # Preprocess the image to obtain rectified image and circles
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
         cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
-        for i in range(5):
+        for i in range(0):
             cls.preprocessor = ImagePreprocessor(image = cls.preprocessed_image)
             cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
 
