@@ -35,17 +35,23 @@ class ArrowDetector:
         # Detect lines using HoughLinesP
         lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
         
-        # Extracting line coordinates
+        # Extracting line coordinates excluding those with center points near the image boundaries
         line_coords = []
         if lines is not None:
             for line in lines:
                 x1, y1, x2, y2 = line[0]
-                line_coords.append([x1, y1, x2, y2])
+                # Calculate center point of the line
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                # Filter out lines with center points too close to the image boundaries
+                if center_x > 100 and center_x < self.rectified_image.shape[1] - 100 and \
+                center_y > 100 and center_y < self.rectified_image.shape[0] - 100:
+                    line_coords.append([x1, y1, x2, y2])
         
-        # Fit a line to the arrow
+        # Fit a line to the arrow among the filtered lines
         if len(line_coords) > 0:
             # Assuming the arrow will be the longest line detected
             longest_line = max(line_coords, key=lambda line: np.linalg.norm(np.array(line[:2]) - np.array(line[2:])))
-            return longest_line
+            return longest_line, line_coords
         else:
             return None
