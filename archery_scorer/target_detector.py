@@ -52,16 +52,15 @@ class TargetDetector:
         return grouped_circles
 
     
-    def detect_circles(self, dp=0.75, minDist=0.000000001, param1=150, param2=700, minRadius=1, maxRadius=2000, radius_threshold=50):
+    def detect_circles(self, dp=0.75, minDist=0.000000001, param1=150, param2=700, minRadius=0, maxRadius=0, radius_threshold=50):
         """
         Detect the concentric circles of the target face using Hough Circle Transform.
         """
         image = self.preprocessed_image.copy()
         blurred_image = cv2.GaussianBlur(image, (5, 5), 2)
-        all_circles = []
 
         circles = None
-        while circles is None or len(circles[0])<15:
+        while circles is None or len(circles[0])<20:
             circles = cv2.HoughCircles(
                 blurred_image,
                 cv2.HOUGH_GRADIENT,
@@ -80,9 +79,39 @@ class TargetDetector:
             image_c = self.preprocessed_image.copy()
             for circle in circles:
                 cv2.circle(image_c, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
-            cv2.imshow(f"asd",image_c)
+            cv2.imshow(f"asd", image_c)
             # Group circles with similar radii
             circles = self.group_similar_circles(circles, radius_threshold)
+
+            # Find the smallest circle
+            smallest_circle = min(circles, key=lambda x: x[2]) if len(circle) > 0 else None
+
+            # Calculate the total number of circles and the radii of each circle
+            total_circles = len(circles)
+            radii = [circle[2] for circle in circles]
+
+            # Calculate the average difference between the radii
+            if total_circles > 1:
+                radii_diffs = [abs(radii[i] - radii[i - 1]) for i in range(1, total_circles)]
+                average_diff = sum(radii_diffs) / len(radii_diffs)
+            else:
+                average_diff = 0
+            
+            if smallest_circle is not None:
+                while len(circles) < 5: 
+                    smaller_circle_radius = max(smallest_circle[2] - average_diff, 0)  # Ensure radius is not negative
+                    smaller_circle = (smallest_circle[0], smallest_circle[1], int(smaller_circle_radius))
+                    circles.append(smaller_circle)
+                    smallest_circle = smaller_circle
+
+            
+
+        else:
+            total_circles = 0
+            radii = []
+            smallest_circle = None
+            average_diff = 0
+
 
         return circles
 
