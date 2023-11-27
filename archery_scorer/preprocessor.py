@@ -159,14 +159,15 @@ class ImagePreprocessor:
         :param canny_threshold2: Upper threshold for the Canny edge detector.
         :param max_ellipse_axis_ratio: The maximum ratio between the major and minor axis to consider an ellipse as an oval needing correction.
         """
-        # Blur image 
-        blurred_image = self.apply_gaussian_blur()
 
         # Apply histogram equalization
-        equalized_image = cv2.equalizeHist(blurred_image)
+        equalized_image = cv2.equalizeHist(self.original_image)
 
+        # Blur image 
+        blurred_image = cv2.GaussianBlur(equalized_image, (5, 5), 2)
+        
         # Detect edges
-        edges = cv2.Canny(equalized_image, canny_threshold1, canny_threshold2)
+        edges = cv2.Canny(blurred_image, canny_threshold1, canny_threshold2)
         
         # Detect ellipses using Hough Ellipse Transform or other ellipse-fitting techniques
         ellipses = self.detect_ellipses(edges)
