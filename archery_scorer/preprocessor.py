@@ -61,18 +61,13 @@ class ImagePreprocessor:
             image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
         
         grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        # Apply histogram equalization
-        equalized_image = cv2.equalizeHist(grayscale_image)
-
-        # Apply CLAHE to the equalized image
-        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
-        clahe_image = clahe.apply(equalized_image)
+        
 
 
-        return clahe_image
+        return grayscale_image
 
     
-    def apply_gaussian_blur(self, kernel_size=(3, 3), sigma=3):
+    def apply_gaussian_blur(self, kernel_size=(5, 5), sigma=3):
         """
         Apply Gaussian blur to the image to reduce noise.
         :param kernel_size: Size of the Gaussian kernel.
@@ -167,8 +162,11 @@ class ImagePreprocessor:
         # Blur image 
         blurred_image = self.apply_gaussian_blur()
 
+        # Apply histogram equalization
+        equalized_image = cv2.equalizeHist(blurred_image)
+
         # Detect edges
-        edges = cv2.Canny(blurred_image, canny_threshold1, canny_threshold2)
+        edges = cv2.Canny(equalized_image, canny_threshold1, canny_threshold2)
         
         # Detect ellipses using Hough Ellipse Transform or other ellipse-fitting techniques
         ellipses = self.detect_ellipses(edges)
