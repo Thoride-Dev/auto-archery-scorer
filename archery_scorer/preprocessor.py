@@ -61,7 +61,16 @@ class ImagePreprocessor:
             image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
         
         grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return grayscale_image
+        # Apply histogram equalization
+        equalized_image = cv2.equalizeHist(grayscale_image)
+
+        # Apply CLAHE to the equalized image
+        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
+        clahe_image = clahe.apply(equalized_image)
+
+
+        return clahe_image
+
     
     def apply_gaussian_blur(self, kernel_size=(3, 3), sigma=3):
         """

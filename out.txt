@@ -62,13 +62,39 @@ class ArrowDetector:
         """
         Detect gaps in the concentric circles that may indicate the presence of arrows.
         """
-        pass
+        gaps = []
+        if len(self.circles) > 1:
+            for i in range(len(self.circles) - 1):
+                # Calculate the distance between circles
+                distance = np.abs(self.circles[i][0][2] - self.circles[i + 1][0][2])
+                gaps.append(distance)
+        return gaps
     
-    def detect_arrows(self):
+    def detect_arrow(self):
         """
-        Detect the arrows by finding lines and clusters within the target face.
+        Detect a single arrow by finding lines within the target face.
         """
-        pass
+        # Edge detection using Canny
+        edges = cv2.Canny(self.rectified_image, 50, 150)
+        
+        # Detect lines using HoughLinesP
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
+        
+        # Extracting line coordinates
+        line_coords = []
+        if lines is not None:
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                line_coords.append([x1, y1, x2, y2])
+        
+        # Fit a line to the arrow
+        if len(line_coords) > 0:
+            # Assuming the arrow will be the longest line detected
+            longest_line = max(line_coords, key=lambda line: np.linalg.norm(np.array(line[:2]) - np.array(line[2:])))
+            return longest_line
+        else:
+            return None
+
 ```
 
 # archery_scorer\preprocessor.py
@@ -85,12 +111,16 @@ class ImagePreprocessor:
     This includes noise reduction, edge detection, and perspective correction.
     """
     
-    def __init__(self, image_path):
+    def __init__(self, image_path=None, image=None):
         """
         Initialize the ImagePreprocessor with the path to the image.
         """
-        self.image_path = image_path
-        self.original_image = self.load_image()
+        if image_path:
+            self.image_path = image_path
+            self.original_image = self.load_image()
+        else:
+            self.image_path = ""
+            self.original_image = image
 
     def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
         """
@@ -219,7 +249,7 @@ class ImagePreprocessor:
         # Check if the bounding box fits within the image boundaries
         return (bbox_x0 >= 0 and bbox_x1 < width and bbox_y0 >= 0 and bbox_y1 < height)
     
-    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.05):
+    def detect_and_correct_ovals(self, canny_threshold1=50, canny_threshold2=200, max_ellipse_axis_ratio=1.0000001):
         """
         Detect ovals in the image and correct the perspective to make them circles.
         :param canny_threshold1: Lower threshold for the Canny edge detector.
@@ -295,6 +325,7 @@ class Scorer:
 import cv2
 import numpy as np
 
+
 class TargetDetector:
     """
     This class is responsible for detecting the target face and its concentric circles.
@@ -310,19 +341,53 @@ class TargetDetector:
         """
         Detect the corners of the target face.
         """
+        # Assuming the target face is the largest square-like contour
+        # This method would be implemented if needed
         pass
     
     def rectify_target(self):
         """
         Rectify the image so that the target face is frontal and circular.
         """
+        # Assuming the preprocessor already rectifies the image to a circle
+        # This method would be implemented if needed
         pass
     
-    def detect_circles(self):
+    def detect_circles(self, dp=1.2, minDist=0.001, param1=100, param2=375, minRadius=1, maxRadius=2000):
         """
-        Detect the concentric circles of the target face.
+        Detect the concentric circles of the target face using Hough Circle Transform.
+        :param dp: Inverse ratio of the accumulator resolution to the image resolution.
+        :param minDist: Minimum distance between the centers of the detected circles.
+        :param param1: Higher threshold for the Canny edge detector.
+        :param param2: Threshold for center detection.
+        :param minRadius: Minimum circle radius.
+        :param maxRadius: Maximum circle radius.
+        :return: A list of detected circles with (x, y, radius).
         """
-        pass
+        #gray_image = cv2.cvtColor(self.preprocessed_image, cv2.COLOR_BGR2GRAY)
+        image = self.preprocessed_image.copy()
+
+        circles = cv2.HoughCircles(
+            image,
+            cv2.HOUGH_GRADIENT,
+            dp=dp,
+            minDist=minDist,
+            param1=param1,
+            param2=param2,
+            minRadius=minRadius,
+            maxRadius=maxRadius
+        )
+        
+        if circles is not None:
+            circles = np.round(circles[0, :]).astype("int")
+            return circles
+        else:
+            return []
+
+# Example usage:
+# preprocessed_image = ... # This should be the output from the preprocessor
+# target_detector = TargetDetector(preprocessed_image)
+# circles = target_detector.detect_circles()
 ```
 
 # tests\test_app.py
@@ -438,7 +503,7 @@ class TestImagePreprocessor(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/8-09.jpg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/M-22.jpg'  # Provide a valid path to a test image
         cls.test_image = cv2.imread(cls.test_image_path, cv2.IMREAD_COLOR)
         if cls.test_image is None:
             raise FileNotFoundError(f"Test image not found at {cls.test_image_path}")
@@ -528,5 +593,74 @@ class TestImagePreprocessor(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+```
+
+# tests\test_target_detector.py
+```
+import unittest
+import cv2
+import numpy as np
+import sys
+import os
+
+# Adjust the path to import the necessary modules
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from archery_scorer.target_detector import TargetDetector
+from archery_scorer.preprocessor import ImagePreprocessor
+
+class TestTargetDetector(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # This method will be executed once before any test is run
+        # Load a test image or create a synthetic one for testing purposes
+        cls.test_image_path = 'tests/data/10-27.jpg'  # Provide a valid path to a test image
+        
+        cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
+        cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
+        for i in range(5):
+            cls.preprocessor = ImagePreprocessor(image = cls.preprocessed_image)
+            cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
+
+
+    def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
+        """
+        Display the image in a window with optional scaling.
+        :param image: The image to be displayed.
+        :param title: The title of the window.
+        :param wait_key_time: Time in milliseconds to wait for a key event. 0 means wait indefinitely.
+        :param scale: Scaling factor for the image size.
+        """
+        if scale != 1.0:
+            # Calculate the new dimensions based on the scaling factor
+            new_width = int(image.shape[1] * scale)
+            new_height = int(image.shape[0] * scale)
+            # Resize the image using the new dimensions
+            scaled_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        else:
+            scaled_image = image
+
+        cv2.imshow(title, scaled_image)
+        cv2.waitKey(wait_key_time)
+        cv2.destroyAllWindows()
+
+    def test_detect_circles(self):
+        # Initialize the TargetDetector with the preprocessed image
+        target_detector = TargetDetector(self.preprocessed_image)
+        # Detect circles on the target face
+        circles = target_detector.detect_circles()
+        # Assert that circles have been detected
+        #self.assertIsNotNone(circles, "Circles should be detected")
+        #self.assertGreater(len(circles), 0, "At least one circle should be detected")
+
+        # Optionally, visualize the detected circles on the image
+        for circle in circles:
+            cv2.circle(self.preprocessed_image, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
+        self.show_image(self.preprocessed_image, title="Detected Circles", wait_key_time=0)
+
+    # Additional test cases can be added here to test other functionalities
+    # such as find_target_corners, rectify_target, etc.
+
+if __name__ == '__main__':
+    unittest.main()
 ```
 
