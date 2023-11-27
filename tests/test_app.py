@@ -1,5 +1,11 @@
 import unittest
-from archery_scorer import ArcheryScorerApp
+import cv2
+import numpy as np
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from archery_scorer.app import ArcheryScorerApp
 
 class TestArcheryScorer(unittest.TestCase):
     """

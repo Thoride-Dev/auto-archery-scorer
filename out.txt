@@ -1,18 +1,18 @@
-# README.md
-```
+README.md
+----------
 # auto-archery-scorer
 A cv program that determines the score of an archery arrow on target from an image.
 
-```
+----------
 
-# requirements.txt
-```
+requirements.txt
+----------
 opencv-python
 numpy
-```
+----------
 
-# archery_scorer\app.py
-```
+archery_scorer\app.py
+----------
 import cv2
 import numpy as np
 
@@ -39,10 +39,10 @@ if __name__ == "__main__":
     image_path = "path_to_archery_target_image.jpg"
     app = ArcheryScorerApp(image_path)
     app.run()
-```
+----------
 
-# archery_scorer\arrow_detector.py
-```
+archery_scorer\arrow_detector.py
+----------
 import cv2
 import numpy as np
 
@@ -75,30 +75,80 @@ class ArrowDetector:
         Detect a single arrow by finding lines within the target face.
         """
         # Edge detection using Canny
-        edges = cv2.Canny(self.rectified_image, 50, 150)
+        edges = cv2.Canny(self.rectified_image, 200, 250)
         
         # Detect lines using HoughLinesP
         lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=50, maxLineGap=10)
         
-        # Extracting line coordinates
+        # Extracting line coordinates excluding those with center points near the image boundaries
         line_coords = []
         if lines is not None:
             for line in lines:
                 x1, y1, x2, y2 = line[0]
-                line_coords.append([x1, y1, x2, y2])
+                # Calculate center point of the line
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                # Filter out lines with center points too close to the image boundaries
+                if center_x > 150 and center_x < self.rectified_image.shape[1] - 150 and \
+                center_y > 150 and center_y < self.rectified_image.shape[0] - 150:
+                    line_coords.append([x1, y1, x2, y2])
         
-        # Fit a line to the arrow
+        # Fit a line to the arrow among the filtered lines
         if len(line_coords) > 0:
             # Assuming the arrow will be the longest line detected
             longest_line = max(line_coords, key=lambda line: np.linalg.norm(np.array(line[:2]) - np.array(line[2:])))
-            return longest_line
+            return longest_line, line_coords
         else:
             return None
 
-```
+----------
 
-# archery_scorer\preprocessor.py
-```
+archery_scorer\evaluation.py
+----------
+import numpy as np
+
+class ArrowEvaluation:
+    """
+    Class for evaluating the score of an arrow based on the position of the arrow tip
+    relative to the concentric circles.
+    """
+    def __init__(self, circles, arrow_line):
+        """
+        Initialize the ArrowEvaluation with the detected circles and arrow line.
+        """
+        self.circles = circles
+        self.arrow_line = arrow_line
+
+    def evaluate_arrow(self):
+        """
+        Evaluate the score of the arrow based on the position of the arrow tip
+        """
+        # Check if arrow line exists
+        if self.arrow_line is None:
+            return 'M'  # Outside all circles, denoted as 'M'
+
+        # Extract coordinates of arrow line endpoints
+        x1, y1, x2, y2 = self.arrow_line
+
+        # Calculate the center point of the arrow tip (using the endpoint closer to the circles)
+        if np.linalg.norm(np.array([x1, y1]) - np.array(self.circles[0][:2])) < \
+                np.linalg.norm(np.array([x2, y2]) - np.array(self.circles[0][:2])):
+            arrow_tip_x, arrow_tip_y = x1, y1
+        else:
+            arrow_tip_x, arrow_tip_y = x2, y2
+
+        # Check which circle contains the arrow tip
+        for i, circle in enumerate(self.circles):
+            circle_x, circle_y, radius = circle
+            distance_to_center = np.sqrt((circle_x - arrow_tip_x) ** 2 + (circle_y - arrow_tip_y) ** 2)
+            if distance_to_center <= radius:
+                return 10 - i  # Assign score based on ring (10 for outermost, 6 for innermost)
+
+        return 'M'  # Outside all circles
+----------
+
+archery_scorer\preprocessor.py
+----------
 import cv2
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -162,7 +212,16 @@ class ImagePreprocessor:
             image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
         
         grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return grayscale_image
+        # Apply histogram equalization
+        equalized_image = cv2.equalizeHist(grayscale_image)
+
+        # Apply CLAHE to the equalized image
+        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
+        clahe_image = clahe.apply(equalized_image)
+
+
+        return clahe_image
+
     
     def apply_gaussian_blur(self, kernel_size=(3, 3), sigma=3):
         """
@@ -173,7 +232,7 @@ class ImagePreprocessor:
         blurred_image = cv2.GaussianBlur(self.original_image, kernel_size, sigmaX=sigma, sigmaY=sigma)
         return blurred_image
     
-    def detect_edges(self, image, low_threshold=30, high_threshold=200):
+    def detect_edges(self, image, low_threshold=100, high_threshold=300):
         """
         Use Canny edge detection to find edges in the image.
         :param low_threshold: Lower bound for the hysteresis thresholding.
@@ -288,10 +347,10 @@ class ImagePreprocessor:
         corrected_image = cv2.warpPerspective(self.original_image, transformation, (self.original_image.shape[1], self.original_image.shape[0]))
         
         return corrected_image
-```
+----------
 
-# archery_scorer\scorer.py
-```
+archery_scorer\scorer.py
+----------
 import cv2
 import numpy as np
 
@@ -318,10 +377,10 @@ class Scorer:
         Calculate the total score for all detected arrows.
         """
         pass
-```
+----------
 
-# archery_scorer\target_detector.py
-```
+archery_scorer\target_detector.py
+----------
 import cv2
 import numpy as np
 
@@ -353,7 +412,7 @@ class TargetDetector:
         # This method would be implemented if needed
         pass
     
-    def detect_circles(self, dp=1.2, minDist=0.001, param1=100, param2=375, minRadius=1, maxRadius=2000):
+    def detect_circles(self, dp=1.2, minDist=0.001, param1=150, param2=700, minRadius=1, maxRadius=2000):
         """
         Detect the concentric circles of the target face using Hough Circle Transform.
         :param dp: Inverse ratio of the accumulator resolution to the image resolution.
@@ -367,18 +426,38 @@ class TargetDetector:
         #gray_image = cv2.cvtColor(self.preprocessed_image, cv2.COLOR_BGR2GRAY)
         image = self.preprocessed_image.copy()
 
-        circles = cv2.HoughCircles(
-            image,
-            cv2.HOUGH_GRADIENT,
-            dp=dp,
-            minDist=minDist,
-            param1=param1,
-            param2=param2,
-            minRadius=minRadius,
-            maxRadius=maxRadius
-        )
+        # Apply Gaussian blur to reduce noise
+        blurred_image = cv2.GaussianBlur(image, (3, 3), 2)
+
+        cv2.imshow("As", blurred_image)
+        cv2.imwrite("blurred.jpg", blurred_image)
         
+        # Apply edge detection
+        edges = cv2.Canny(blurred_image, 300, 600)
+
+        # Apply morphological operations to close gaps in edges
+        kernel = np.ones((3, 3), np.uint8)
+        edges = cv2.dilate(edges, kernel, iterations=3)
+        cv2.imshow("as", edges)
+        cv2.imwrite("edges.jpg", edges)
+
+        circles = None
+        while circles is None or len(circles[0])<10:
+            circles = cv2.HoughCircles(
+                edges,
+                cv2.HOUGH_GRADIENT,
+                dp=dp,
+                minDist=minDist,
+                param1=param1,
+                param2=param2,
+                minRadius=minRadius,
+                maxRadius=maxRadius
+            )
+            param2-=5
+        
+        print(circles)
         if circles is not None:
+            print(f"Number of Circles: {len(circles[0])}")
             circles = np.round(circles[0, :]).astype("int")
             return circles
         else:
@@ -388,10 +467,10 @@ class TargetDetector:
 # preprocessed_image = ... # This should be the output from the preprocessor
 # target_detector = TargetDetector(preprocessed_image)
 # circles = target_detector.detect_circles()
-```
+----------
 
-# tests\test_app.py
-```
+tests\test_app.py
+----------
 import unittest
 from archery_scorer import ArcheryScorerApp
 
@@ -485,10 +564,93 @@ class TestArcheryScorer(unittest.TestCase):
 # Main execution of test cases
 if __name__ == '__main__':
     unittest.main()
-```
+----------
 
-# tests\test_preprocessor.py
-```
+tests\test_arrow_detector.py
+----------
+import unittest
+import cv2
+import numpy as np
+import sys
+import os
+
+# Adjust the path to import the necessary modules
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from archery_scorer.target_detector import TargetDetector
+from archery_scorer.preprocessor import ImagePreprocessor
+from archery_scorer.arrow_detector import ArrowDetector
+
+class TestArrowDetector(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # This method will be executed once before any test is run
+        # Load a test image or create a synthetic one for testing purposes
+        cls.test_image_path = 'tests/data/7-01.jpg'  # Provide a valid path to a test image
+        
+        # Preprocess the image to obtain rectified image and circles
+        cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
+        cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
+        for i in range(5):
+            cls.preprocessor = ImagePreprocessor(image = cls.preprocessed_image)
+            cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
+
+        target_detector = TargetDetector(cls.preprocessed_image)
+        # Detect circles on the target face
+        circles = target_detector.detect_circles()
+        
+        # Create an instance of ArrowDetector with the rectified image and circles
+        cls.arrow_detector = ArrowDetector(cls.preprocessed_image, circles)
+
+    def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
+        """
+        Display the image in a window with optional scaling.
+        :param image: The image to be displayed.
+        :param title: The title of the window.
+        :param wait_key_time: Time in milliseconds to wait for a key event. 0 means wait indefinitely.
+        :param scale: Scaling factor for the image size.
+        """
+        if scale != 1.0:
+            # Calculate the new dimensions based on the scaling factor
+            new_width = int(image.shape[1] * scale)
+            new_height = int(image.shape[0] * scale)
+            # Resize the image using the new dimensions
+            scaled_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        else:
+            scaled_image = image
+
+        cv2.imshow(title, scaled_image)
+        cv2.waitKey(wait_key_time)
+        cv2.destroyAllWindows()
+
+    def test_detect_arrow(self):
+        # Detect arrow lines on the test image
+        arrow_line, lines = self.arrow_detector.detect_arrow()
+        
+        # Assert that arrow lines have been detected
+        self.assertIsNotNone(arrow_line, "Arrow line should be detected")
+        
+        # Optionally, visualize the detected arrow line on the image
+        if arrow_line is not None:
+            x1, y1, x2, y2 = arrow_line
+            cv2.line(self.preprocessed_image, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            self.show_image(self.preprocessed_image, title="Detected Arrow Line", wait_key_time=0)
+
+        print(arrow_line)
+
+        # Draw all the lines detected
+        for line in lines:
+            x1, y1, x2, y2 = line
+            cv2.line(self.preprocessed_image, (x1, y1), (x2, y2), (255, 0, 0), 2)
+        
+        self.show_image(self.preprocessed_image, title="Detected Lines", wait_key_time=0)
+
+if __name__ == '__main__':
+    unittest.main()
+
+----------
+
+tests\test_preprocessor.py
+----------
 import unittest
 import cv2
 import numpy as np
@@ -552,7 +714,7 @@ class TestImagePreprocessor(unittest.TestCase):
         preprocessor = ImagePreprocessor(self.test_image_path)
         # Apply Canny edge detection to the image
         blurred_image = preprocessor.apply_gaussian_blur()
-        edges = cv2.Canny(blurred_image, 150, 400)
+        edges = cv2.Canny(blurred_image, 100, 300)
         #self.show_image(edges, title="Canny Edges (Detect Ellipses)", wait_key_time=0)
         # Detect ellipses in the edge-detected image
         ellipses = preprocessor.detect_ellipses(edges)
@@ -593,10 +755,10 @@ class TestImagePreprocessor(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-```
+----------
 
-# tests\test_target_detector.py
-```
+tests\test_target_detector.py
+----------
 import unittest
 import cv2
 import numpy as np
@@ -613,11 +775,11 @@ class TestTargetDetector(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/10-27.jpg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/8-09.jpg'  # Provide a valid path to a test image
         
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
         cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
-        for i in range(5):
+        for i in range(0):
             cls.preprocessor = ImagePreprocessor(image = cls.preprocessed_image)
             cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
 
@@ -653,14 +815,13 @@ class TestTargetDetector(unittest.TestCase):
         #self.assertGreater(len(circles), 0, "At least one circle should be detected")
 
         # Optionally, visualize the detected circles on the image
+        image_with_circles = target_detector.preprocessed_image.copy()
         for circle in circles:
-            cv2.circle(self.preprocessed_image, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
-        self.show_image(self.preprocessed_image, title="Detected Circles", wait_key_time=0)
+            cv2.circle(image_with_circles, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
+        self.show_image(image_with_circles, title="Detected Circles", wait_key_time=0)
 
-    # Additional test cases can be added here to test other functionalities
-    # such as find_target_corners, rectify_target, etc.
 
 if __name__ == '__main__':
     unittest.main()
-```
+----------
 
