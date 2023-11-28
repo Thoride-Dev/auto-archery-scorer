@@ -52,15 +52,18 @@ class TargetDetector:
         return grouped_circles
 
     
-    def detect_circles(self, dp=0.75, minDist=0.000000001, param1=150, param2=700, minRadius=0, maxRadius=0, radius_threshold=50):
+    def detect_circles(self, dp=0.70, minDist=0.000000001, param1=150, param2=700, minRadius=0, maxRadius=0, radius_threshold=70):
         """
         Detect the concentric circles of the target face using Hough Circle Transform.
         """
         image = self.preprocessed_image.copy()
+
+        cv2.imwrite(f"results/Org Preprocessed.jpg", image)
+
         blurred_image = cv2.GaussianBlur(image, (5, 5), 2)
 
         circles = None
-        while circles is None or len(circles[0])<50:
+        while circles is None or len(circles[0]) < 50:
             circles = cv2.HoughCircles(
                 blurred_image,
                 cv2.HOUGH_GRADIENT,
@@ -71,21 +74,36 @@ class TargetDetector:
                 minRadius=minRadius,
                 maxRadius=maxRadius
             )
-            param2-=5
+            param2 -= 5
 
         if circles is not None:
             circles = np.round(circles[0, :]).astype("int")
-            # Combine all circles onto the original image
-            image_c = self.preprocessed_image.copy()
+
+            # Detect circles
+            image_with_circles = self.preprocessed_image.copy()
+            color_image = cv2.cvtColor(image_with_circles, cv2.COLOR_GRAY2BGR)
             for circle in circles:
-                cv2.circle(image_c, (circle[0], circle[1]), circle[2], (255, 0, 0), 2)
-            cv2.imshow(f"asd", image_c)
+                cv2.circle(color_image , (circle[0], circle[1]), circle[2], (0, 0, 255), 2)
+            cv2.imshow(f"Circles", color_image)
+            cv2.imwrite(f"results/Detected Circles.jpg", color_image)
+
             # Group circles with similar radii
             circles = self.group_similar_circles(circles, radius_threshold)
 
-            # Find the smallest circle
-            smallest_circle = min(circles, key=lambda x: x[2]) if len(circle) > 0 else None
+            # group circles
+            image_with_circles = self.preprocessed_image.copy()
+            color_image = cv2.cvtColor(image_with_circles, cv2.COLOR_GRAY2BGR)
+            for circle in circles:
+                cv2.circle(color_image , (circle[0], circle[1]), circle[2], (0, 0, 255), 2)
+            cv2.imshow(f"Grouped Circles", color_image)
+            cv2.imwrite(f"results/Grouped Circles.jpg", color_image)
 
+            # Ensure circles is a NumPy array
+            circles = np.array(circles)
+
+            # Sort circles from largest to smallest by radius
+            circles = circles[circles[:, 2].argsort()[::-1]]
+            
             # Calculate the total number of circles and the radii of each circle
             total_circles = len(circles)
             radii = [circle[2] for circle in circles]
@@ -96,22 +114,41 @@ class TargetDetector:
                 average_diff = sum(radii_diffs) / len(radii_diffs)
             else:
                 average_diff = 0
-            
-            if smallest_circle is not None:
-                while len(circles) < 5: 
-                    smaller_circle_radius = max(smallest_circle[2] - average_diff, 0)  # Ensure radius is not negative
-                    smaller_circle = (smallest_circle[0], smallest_circle[1], int(smaller_circle_radius))
-                    circles.append(smaller_circle)
-                    smallest_circle = smaller_circle
 
-            
+            # Calculate the average difference between the radii and centers
+            center_shifts = []
+            for i in range(1, len(circles)):
+                center_shifts.append((circles[i-1][:2] - circles[i][:2]).tolist())
+
+            if center_shifts:
+                average_center_shift = np.mean(center_shifts, axis=0)
+            else:
+                average_center_shift = np.array([0, 0])
+
+            # Loop to add smaller circles until a total of 5 circles is reached
+            while len(circles) < 5:
+                smallest_circle = circles[-1]
+                smaller_circle_radius = max(smallest_circle[2] - average_diff, 0)  # Ensure radius is not negative
+                if smaller_circle_radius > 0:
+                    # Calculate the new center by applying the average shift
+                    new_center = smallest_circle[:2] - average_center_shift*(0.5)
+                    smaller_circle = (int(new_center[0]), int(new_center[1]), int(smaller_circle_radius))
+                    circles = np.vstack((circles, [smaller_circle]))
+                else:
+                    break  # Stop if the radius becomes zero or negative
+
 
         else:
-            total_circles = 0
             radii = []
-            smallest_circle = None
             average_diff = 0
 
+        # extrapolated circles
+        image_with_circles = self.preprocessed_image.copy()
+        color_image = cv2.cvtColor(image_with_circles, cv2.COLOR_GRAY2BGR)
+        for circle in circles:
+            cv2.circle(color_image , (circle[0], circle[1]), circle[2], (0, 0, 255), 2)
+        cv2.imshow(f"Extrapolated Circles", color_image)
+        cv2.imwrite(f"results/Extrapolated Circles.jpg", color_image)
 
         return circles
 

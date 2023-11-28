@@ -14,13 +14,10 @@ class TestTargetDetector(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/9-21.jpg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/9-20.jpg'  # Provide a valid path to a test image
         
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
         cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
-        for i in range(0):
-            cls.preprocessor = ImagePreprocessor(image = cls.preprocessed_image)
-            cls.preprocessed_image = cls.preprocessor.detect_and_correct_ovals()
 
 
     def show_image(self, image, title="Image", wait_key_time=0, scale=0.75):
