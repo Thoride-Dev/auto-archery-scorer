@@ -15,7 +15,7 @@ class TestArrowScoring(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/M-22.jpg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/6-01.jpg'  # Provide a valid path to a test image
 
         # Preprocess the image to obtain rectified image and circles
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
@@ -70,7 +70,7 @@ class TestArrowScoring(unittest.TestCase):
 
         # Assert the expected arrow score based off test image name
         expected_arrow_score = os.path.basename(self.test_image_path).split('-')[0]
-        self.assertEqual(arrow_score, expected_arrow_score, "Arrow score should match the expected value")
+        self.assertEqual(str(arrow_score), expected_arrow_score, "Arrow score should match the expected value")
         
 if __name__ == '__main__':
     unittest.main()

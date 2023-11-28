@@ -44,7 +44,6 @@ class ArrowDetector:
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
                 # Filter out lines with center points too close to the image boundaries
-                print(self.rectified_image.shape)
                 if center_x > 20 and center_x < self.rectified_image.shape[1] - 20 and center_y > 20 and center_y < self.rectified_image.shape[0] - 20:
                     line_coords.append([x1, y1, x2, y2])
                     #print(center_x, center_y)
