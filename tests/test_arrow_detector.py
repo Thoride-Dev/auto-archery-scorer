@@ -15,7 +15,7 @@ class TestArrowDetector(unittest.TestCase):
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/9-21.jpg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/10-05.jpg'  # Provide a valid path to a test image
         
         # Preprocess the image to obtain rectified image and circles
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)

@@ -1,26 +1,44 @@
-import cv2
 import numpy as np
 
-class Scorer:
+class ArrowScorer:
     """
-    This class is responsible for scoring each arrow based on its position on the target.
+    Class for evaluating the score of an arrow based on the position of the arrow tip
+    relative to the concentric circles.
     """
-    
-    def __init__(self, arrows, circles):
+    def __init__(self, circles, arrow_line):
         """
-        Initialize the Scorer with detected arrows and circles.
+        Initialize the ArrowEvaluation with the detected circles and arrow line.
         """
-        self.arrows = arrows
         self.circles = circles
-    
-    def score_arrow(self, arrow):
+        self.arrow_line = arrow_line
+
+    def evaluate_arrow(self):
         """
-        Score a single arrow based on its position relative to the circles.
+        Evaluate the score of the arrow based on the position of the arrow tip
         """
-        pass
-    
-    def calculate_total_score(self):
-        """
-        Calculate the total score for all detected arrows.
-        """
-        pass
+        # Check if arrow line exists
+        if self.arrow_line is None:
+            return 'M'  # Outside all circles, denoted as 'M'
+
+        # Extract coordinates of arrow line endpoints
+        x1, y1, x2, y2 = self.arrow_line
+
+        # Calculate the center point of the arrow tip (using the endpoint closer to the circles)
+        if np.linalg.norm(np.array([x1, y1]) - np.array(self.circles[0][:2])) < \
+                np.linalg.norm(np.array([x2, y2]) - np.array(self.circles[0][:2])):
+            arrow_tip_x, arrow_tip_y = x1, y1
+        else:
+            arrow_tip_x, arrow_tip_y = x2, y2
+
+        # Check which circle contains the arrow tip
+        for i, circle in enumerate(self.circles):
+            circle_x, circle_y, radius = circle
+            distance_to_center = np.sqrt((circle_x - arrow_tip_x) ** 2 + (circle_y - arrow_tip_y) ** 2)
+            if distance_to_center >= radius:
+                if i == 0:
+                    return 'M'
+                return 5 + i  # Assign score based on ring 
+            elif i == len(self.circles) - 1:
+                return 10
+
+        return 'M'  # Outside all circles
