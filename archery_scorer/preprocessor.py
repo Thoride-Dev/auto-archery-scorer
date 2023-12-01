@@ -67,13 +67,13 @@ class ImagePreprocessor:
         return grayscale_image
 
     
-    def apply_gaussian_blur(self, kernel_size=(5, 5), sigma=3):
+    def apply_gaussian_blur(self, image, kernel_size=(5, 5), sigma=3):
         """
         Apply Gaussian blur to the image to reduce noise.
         :param kernel_size: Size of the Gaussian kernel.
         :param sigma_x: Gaussian kernel standard deviation in X direction.
         """
-        blurred_image = cv2.GaussianBlur(self.original_image, kernel_size, sigmaX=sigma, sigmaY=sigma)
+        blurred_image = cv2.GaussianBlur(image, kernel_size, sigmaX=sigma, sigmaY=sigma)
         return blurred_image
     
     def detect_edges(self, image, low_threshold=100, high_threshold=300):
@@ -164,7 +164,7 @@ class ImagePreprocessor:
         equalized_image = cv2.equalizeHist(self.original_image)
 
         # Blur image 
-        blurred_image = cv2.GaussianBlur(equalized_image, (5, 5), 2)
+        blurred_image = self.apply_gaussian_blur(equalized_image, (5, 5), 2)
         
         # Detect edges
         edges = cv2.Canny(blurred_image, canny_threshold1, canny_threshold2)

@@ -47,7 +47,7 @@ class TestImagePreprocessor(unittest.TestCase):
     
     def test_apply_gaussian_blur(self):
         preprocessor = ImagePreprocessor(self.test_image_path)
-        blurred_image = preprocessor.apply_gaussian_blur()
+        blurred_image = preprocessor.apply_gaussian_blur(preprocessor.original_image)
         self.assertIsNotNone(blurred_image, "Blurred image should not be None")
         # self.show_image(blurred_image)
     
@@ -64,7 +64,7 @@ class TestImagePreprocessor(unittest.TestCase):
         # Apply histogram equalization
         equalized_image = cv2.equalizeHist(image)
         # Blur image 
-        blurred_image = cv2.GaussianBlur(equalized_image, (5, 5), 2)
+        blurred_image = preprocessor.apply_gaussian_blur(equalized_image, (5, 5), 2)
         # Detect edges
         edges = cv2.Canny(blurred_image, 50, 200)
         #self.show_image(edges, title="Canny Edges (Detect Ellipses)", wait_key_time=0)
@@ -96,7 +96,7 @@ class TestImagePreprocessor(unittest.TestCase):
         self.show_image(equalized_image, title="Equalized Image", wait_key_time=0)
         cv2.imwrite(f"results/Equalized Image.jpg", equalized_image)
         # Blur image 
-        blurred_image = cv2.GaussianBlur(equalized_image, (5, 5), 2)
+        blurred_image = preprocessor.apply_gaussian_blur(equalized_image, (5, 5), 2)
         self.show_image(blurred_image, title="Blurred Image", wait_key_time=0)
         cv2.imwrite(f"results/Blurred Image.jpg", blurred_image)
         # Detect edges

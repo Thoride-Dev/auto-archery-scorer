@@ -12,22 +12,6 @@ class TargetDetector:
         Initialize the TargetDetector with the preprocessed image.
         """
         self.preprocessed_image = preprocessed_image
-    
-    def find_target_corners(self):
-        """
-        Detect the corners of the target face.
-        """
-        # Assuming the target face is the largest square-like contour
-        # This method would be implemented if needed
-        pass
-    
-    def rectify_target(self):
-        """
-        Rectify the image so that the target face is frontal and circular.
-        """
-        # Assuming the preprocessor already rectifies the image to a circle
-        # This method would be implemented if needed
-        pass
 
     def group_similar_circles(self, circles, radius_threshold):
         """
@@ -50,7 +34,6 @@ class TargetDetector:
             grouped_circles.append(average_circle)
 
         return grouped_circles
-
     
     def detect_circles(self, dp=0.70, minDist=0.000000001, param1=150, param2=700, minRadius=0, maxRadius=0, radius_threshold=70):
         """
