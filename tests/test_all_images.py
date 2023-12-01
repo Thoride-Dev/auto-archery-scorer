@@ -46,8 +46,9 @@ class TestArrowScoring(unittest.TestCase):
 
                 expected_score = os.path.basename(os.path.dirname(image_path))
                 expected_score = '0' if expected_score == 'M' else expected_score
+                arrow_score = '0' if arrow_score == 'M' else arrow_score
 
-                print(f"{int(arrow_score)} ?= {int(expected_score)}")
+                print(f"{int(arrow_score)} ?= {int(expected_score)}, {image_path}")
                 self.tested+=1
                 if arrow_score == expected_score:
                     self.correct+=1
@@ -55,11 +56,9 @@ class TestArrowScoring(unittest.TestCase):
                 self.results.append(result)
                 #self.assertEqual(str(arrow_score), expected_score, f"Arrow score for {image_path} should match the expected value")
 
-        print(f"{self.correct}/{self.tested} = {self.correct/self.tested}")
 
     @classmethod
     def tearDownClass(cls):
-        print(f"{cls.correct}/{cls.tested} = {cls.correct/cls.tested}")
         correct_count = sum(1 for result in cls.results if result[1] == result[2])
         total_count = len(cls.results)
         accuracy = correct_count / total_count if total_count > 0 else 0
