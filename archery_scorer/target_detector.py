@@ -58,7 +58,7 @@ class TargetDetector:
         """
         image = self.preprocessed_image.copy()
 
-        cv2.imwrite(f"results/Org Preprocessed.jpg", image)
+        #cv2.imwrite(f"results/Org Preprocessed.jpg", image)
 
         blurred_image = cv2.GaussianBlur(image, (5, 5), 2)
 
@@ -84,8 +84,8 @@ class TargetDetector:
             color_image = cv2.cvtColor(image_with_circles, cv2.COLOR_GRAY2BGR)
             for circle in circles:
                 cv2.circle(color_image , (circle[0], circle[1]), circle[2], (0, 0, 255), 2)
-            cv2.imshow(f"Circles", color_image)
-            cv2.imwrite(f"results/Detected Circles.jpg", color_image)
+            #cv2.imshow(f"Circles", color_image)
+            #cv2.imwrite(f"results/Detected Circles.jpg", color_image)
 
             # Group circles with similar radii
             circles = self.group_similar_circles(circles, radius_threshold)
@@ -95,8 +95,8 @@ class TargetDetector:
             color_image = cv2.cvtColor(image_with_circles, cv2.COLOR_GRAY2BGR)
             for circle in circles:
                 cv2.circle(color_image , (circle[0], circle[1]), circle[2], (0, 0, 255), 2)
-            cv2.imshow(f"Grouped Circles", color_image)
-            cv2.imwrite(f"results/Grouped Circles.jpg", color_image)
+            #cv2.imshow(f"Grouped Circles", color_image)
+            #cv2.imwrite(f"results/Grouped Circles.jpg", color_image)
 
             # Ensure circles is a NumPy array
             circles = np.array(circles)
@@ -147,8 +147,8 @@ class TargetDetector:
         color_image = cv2.cvtColor(image_with_circles, cv2.COLOR_GRAY2BGR)
         for circle in circles:
             cv2.circle(color_image , (circle[0], circle[1]), circle[2], (0, 0, 255), 2)
-        cv2.imshow(f"Extrapolated Circles", color_image)
-        cv2.imwrite(f"results/Extrapolated Circles.jpg", color_image)
+        #cv2.imshow(f"Extrapolated Circles", color_image)
+        #cv2.imwrite(f"results/Extrapolated Circles.jpg", color_image)
 
         return circles
 
