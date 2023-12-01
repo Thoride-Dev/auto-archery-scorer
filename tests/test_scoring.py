@@ -11,11 +11,11 @@ from archery_scorer.scorer import ArrowScorer
 from archery_scorer.target_detector import TargetDetector
 
 class TestArrowScoring(unittest.TestCase):
-    @classmethod
+    @classmethod 
     def setUpClass(cls):
         # This method will be executed once before any test is run
         # Load a test image or create a synthetic one for testing purposes
-        cls.test_image_path = 'tests/data/6-01.jpg'  # Provide a valid path to a test image
+        cls.test_image_path = 'tests/data/Test_Set/8-3.jpg'  # Provide a valid path to a test image
 
         # Preprocess the image to obtain rectified image and circles
         cls.preprocessor = ImagePreprocessor(image_path = cls.test_image_path)
